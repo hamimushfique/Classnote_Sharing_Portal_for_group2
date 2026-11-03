@@ -189,13 +189,179 @@
       </section>
     </div>
   </div>
-<!-- 1. Firebase App (Base) -->
+<!-- Firebase App & Firestore Libraries -->
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-
-  <!-- 2. Firestore Database -->
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 
-  <!-- 3. App Logic -->
-  <script src="./app.js"></script>
+  <!-- Embedded Portal & Whitelist Logic -->
+  <script>
+    // 1. Firebase Credentials
+    const firebaseConfig = {
+      apiKey: "AIzaSyAzCP8bLPAJUju-ybhsmFiWGoSu8aEBmFc",
+      authDomain: "faculty-notes-auth.firebaseapp.com",
+      projectId: "faculty-notes-auth",
+      storageBucket: "faculty-notes-auth.firebasestorage.app",
+      messagingSenderId: "579711849456",
+      appId: "1:579711849456:web:430835daf0a4b399a74335",
+      measurementId: "G-8REEQCSJS6"
+    };
+
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    const db = firebase.firestore();
+
+    // 2. Global State
+    let currentRoll = null;
+    let currentPdfDoc = null;
+    let currentPageNum = 1;
+    let currentZoom = 1.0;
+
+    // 3. Login Action
+    async function handleLogin() {
+      const rollInput = document.getElementById('roll-input');
+      const passInput = document.getElementById('pass-input');
+      const loginBtn = document.getElementById('btn-login');
+      const authError = document.getElementById('auth-error');
+      const errText = document.getElementById('err-text');
+      const authView = document.getElementById('auth-view');
+      const portalView = document.getElementById('portal-view');
+      const userTag = document.getElementById('current-user-tag');
+
+      const roll = rollInput.value.trim();
+      const pass = passInput.value.trim();
+
+      if (!roll || !pass) {
+        errText.innerText = "Please enter both Roll Number and Access Key.";
+        authError.style.display = 'flex';
+        return;
+      }
+
+      loginBtn.innerText = "VERIFYING WHITELIST...";
+      loginBtn.disabled = true;
+      authError.style.display = 'none';
+
+      try {
+        const docRef = db.collection('whitelist').doc(roll);
+        const docSnap = await docRef.get();
+
+        if (!docSnap.exists) {
+          errText.innerText = `Roll #${roll} not registered in whitelist.`;
+          authError.style.display = 'flex';
+          resetBtn();
+          return;
+        }
+
+        const data = docSnap.data();
+
+        // Check password match
+        if (String(data.pass).trim() !== String(pass).trim()) {
+          errText.innerText = "Incorrect Access Key.";
+          authError.style.display = 'flex';
+          resetBtn();
+          return;
+        }
+
+        // Success
+        currentRoll = roll;
+        userTag.innerText = `Roll: ${currentRoll}`;
+        sessionStorage.setItem('vault_auth_roll', currentRoll);
+
+        authView.style.display = 'none';
+        portalView.style.display = 'flex';
+        resetBtn();
+
+        initDefaultDocument();
+
+      } catch (err) {
+        console.error("Firestore Error:", err);
+        errText.innerText = "Database connection error. Check console.";
+        authError.style.display = 'flex';
+        resetBtn();
+      }
+
+      function resetBtn() {
+        loginBtn.disabled = false;
+        loginBtn.innerHTML = `<span>INITIALIZE DECRYPTION</span><span class="btn-arrow">→</span>`;
+      }
+    }
+
+    // Attach to button directly
+    document.getElementById('btn-login').addEventListener('click', handleLogin);
+
+    // Logout
+    document.getElementById('btn-logout').addEventListener('click', () => {
+      sessionStorage.removeItem('vault_auth_roll');
+      currentRoll = null;
+      document.getElementById('portal-view').style.display = 'none';
+      document.getElementById('auth-view').style.display = 'flex';
+    });
+
+    // Anti-save / Anti-inspect restrictions
+    document.addEventListener('contextmenu', e => e.preventDefault());
+    document.addEventListener('keydown', e => {
+      if ((e.ctrlKey || e.metaKey) && ['s', 'p', 'u'].includes(e.key.toLowerCase())) {
+        e.preventDefault();
+      }
+    });
+
+    // PDF Canvas & Dynamic Roll Watermark
+    function loadPDF(url) {
+      if (!window.pdfjsLib) return;
+      pdfjsLib.getDocument(url).promise.then(pdf => {
+        currentPdfDoc = pdf;
+        document.getElementById('page-count').innerText = pdf.numPages;
+        currentPageNum = 1;
+        renderCurrentPage();
+      });
+    }
+
+    function renderCurrentPage() {
+      if (!currentPdfDoc) return;
+      const canvas = document.getElementById('pdf-render-canvas');
+      const ctx = canvas.getContext('2d');
+
+      currentPdfDoc.getPage(currentPageNum).then(page => {
+        const viewport = page.getViewport({ scale: currentZoom });
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+
+        page.render({ canvasContext: ctx, viewport: viewport }).promise.then(() => {
+          if (!currentRoll) return;
+          ctx.save();
+          ctx.font = 'bold 24px monospace';
+          ctx.fillStyle = 'rgba(255, 51, 102, 0.16)';
+          ctx.rotate(-22 * Math.PI / 180);
+          const watermark = `RESTRICTED COPY • ROLL: ${currentRoll}`;
+          for (let y = -viewport.height; y < viewport.height * 2; y += 190) {
+            for (let x = -viewport.width; x < viewport.width * 2; x += 360) {
+              ctx.fillText(watermark, x, y);
+            }
+          }
+          ctx.restore();
+        });
+      });
+
+      document.getElementById('page-num').innerText = currentPageNum;
+    }
+
+    function initDefaultDocument() {
+      loadPDF("https://raw.githubusercontent.com/mozilla/pdf.js/ba2edeae/web/compressed.tracemonkey-pldi-09.pdf");
+    }
+
+    // Page Navigation
+    document.getElementById('prev-page').addEventListener('click', () => {
+      if (currentPageNum > 1) { currentPageNum--; renderCurrentPage(); }
+    });
+    document.getElementById('next-page').addEventListener('click', () => {
+      if (currentPdfDoc && currentPageNum < currentPdfDoc.numPages) { currentPageNum++; renderCurrentPage(); }
+    });
+    document.getElementById('zoom-in').addEventListener('click', () => {
+      if (currentZoom < 2.2) { currentZoom += 0.2; renderCurrentPage(); }
+    });
+    document.getElementById('zoom-out').addEventListener('click', () => {
+      if (currentZoom > 0.6) { currentZoom -= 0.2; renderCurrentPage(); }
+    });
+  </script>
 </body>
 </html>
