@@ -26,9 +26,11 @@
       --text-main: #f3f4f6;
       --text-muted: #9ca3af;
       --danger: #ef4444;
+      --folder-color: #fbbf24;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    
     body {
       background: var(--bg);
       color: var(--text-main);
@@ -37,6 +39,10 @@
       overflow-x: hidden;
       user-select: none;
       -webkit-user-select: none;
+    }
+
+    @media print {
+      body { display: none !important; }
     }
 
     .ambient-glow {
@@ -217,7 +223,7 @@
       overflow: hidden;
     }
     .sidebar {
-      width: 320px;
+      width: 340px;
       border-radius: 0;
       border-top: none;
       border-bottom: none;
@@ -225,25 +231,94 @@
       display: flex;
       flex-direction: column;
     }
-    .sidebar-header { padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
-    .sidebar-label { font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700; color: var(--text-muted); }
-    .badge-count { font-size: 11px; background: rgba(255, 255, 255, 0.08); padding: 2px 6px; border-radius: 10px; }
-    .document-list { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
-    .doc-card {
+    
+    /* DIRECTORY NAVIGATOR HEADER */
+    .sidebar-header {
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      border-bottom: 1px solid var(--border);
       background: rgba(0, 0, 0, 0.2);
+    }
+    .nav-breadcrumbs {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--text-muted);
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+    .crumb-btn {
+      background: none;
+      border: none;
+      color: var(--accent);
+      cursor: pointer;
+      font-family: inherit;
+      font-size: inherit;
+    }
+    .crumb-btn:hover { text-decoration: underline; }
+    
+    .document-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    /* DIRECTORY ITEMS (FOLDERS & FILES) */
+    .dir-item {
+      background: rgba(0, 0, 0, 0.25);
       border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 12px;
+      padding: 12px 14px;
       text-align: left;
       cursor: pointer;
       transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 12px;
     }
-    .doc-card:hover { border-color: rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.03); }
-    .doc-card.active { border-color: var(--accent); background: rgba(59, 130, 246, 0.08); }
-    .doc-card-badge { font-family: 'JetBrains Mono', monospace; font-size: 9px; font-weight: 700; color: var(--accent); margin-bottom: 4px; }
-    .doc-card-title { font-size: 13px; font-weight: 600; color: var(--text-main); margin-bottom: 6px; line-height: 1.3; }
-    .doc-card-details { font-size: 11px; color: var(--text-muted); }
-    .sidebar-footer { padding: 16px; border-top: 1px solid var(--border); }
+    .dir-item:hover {
+      border-color: rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.04);
+    }
+    .dir-item.active {
+      border-color: var(--accent);
+      background: rgba(59, 130, 246, 0.1);
+    }
+    .item-icon {
+      font-size: 18px;
+      line-height: 1;
+    }
+    .item-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .item-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-main);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 3px;
+    }
+    .item-meta {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .item-arrow {
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+
+    .sidebar-footer { padding: 14px; border-top: 1px solid var(--border); }
     .watermark-notice { background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 6px; padding: 10px; }
     .watermark-notice span { font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700; color: var(--danger); display: block; margin-bottom: 4px; }
     .watermark-notice p { font-size: 11px; color: #9ca3af; line-height: 1.4; }
@@ -300,7 +375,22 @@
       overflow: hidden;
       display: inline-block;
     }
-    #pdf-render-canvas { display: block; }
+    #pdf-render-canvas {
+      display: block;
+      pointer-events: none;
+    }
+
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--text-muted);
+      text-align: center;
+      padding: 40px;
+    }
+    .empty-icon { font-size: 40px; margin-bottom: 12px; opacity: 0.4; }
   </style>
 </head>
 <body>
@@ -314,10 +404,10 @@
       <div class="auth-header">
         <div class="badge-status">
           <span class="blinking-dot"></span>
-          <span>INTERNAL NODE ONLY</span>
+          <span>RESTRICTED NODE</span>
         </div>
         <h1>ACADEMIC VAULT</h1>
-        <p>Restricted access node for authorized peers. Enter credentials to decrypt notes.</p>
+        <p>Enter your authorized Roll number and Access Key to unlock directory trees.</p>
       </div>
 
       <form id="login-form" onsubmit="return false;">
@@ -338,7 +428,7 @@
         </div>
 
         <button type="submit" id="btn-login" class="glow-button">
-          <span>INITIALIZE DECRYPTION</span>
+          <span>DECRYPT & ENTER</span>
           <span>→</span>
         </button>
         
@@ -349,7 +439,7 @@
       </form>
 
       <footer class="auth-footer">
-        🔒 Protected by memory-stream canvas rendering
+        🔒 Protected by client-side encrypted stream rendering
       </footer>
     </div>
   </main>
@@ -361,12 +451,12 @@
         <div class="brand-badge">ND</div>
         <div class="brand-title">
           <span>FACULTY_VAULT</span>
-          <span class="version-tag">v3.0-SECURE</span>
+          <span class="version-tag">v3.5-BROWSER</span>
         </div>
       </div>
 
       <div class="nav-center">
-        <span class="document-name-header" id="active-doc-title">Select a lecture notebook</span>
+        <span class="document-name-header" id="active-doc-title">Browse archives</span>
       </div>
 
       <div class="nav-right">
@@ -385,43 +475,30 @@
     </header>
 
     <div class="workspace">
+      <!-- SIDEBAR WITH DYNAMIC DIRECTORY NAVIGATION -->
       <aside class="sidebar glass-panel">
         <div class="sidebar-header">
-          <span class="sidebar-label">AVAILABLE ARCHIVES</span>
-          <span class="badge-count" id="doc-count">3</span>
+          <div class="nav-breadcrumbs" id="breadcrumbs-container">
+            <!-- Breadcrumbs rendered dynamically -->
+          </div>
         </div>
 
-        <!-- PASTE YOUR GOOGLE DRIVE FILE IDS IN data-drive-id -->
-        <div class="document-list" id="doc-list-container">
-          <button class="doc-card active" data-drive-id="PASTE_DRIVE_ID_1_HERE">
-            <div class="doc-card-badge">PHYSICS</div>
-            <div class="doc-card-title">Vector Mechanics & Newton's Laws</div>
-            <div class="doc-card-details"><span>📖 Class Notes</span></div>
-          </button>
-
-          <button class="doc-card" data-drive-id="PASTE_DRIVE_ID_2_HERE">
-            <div class="doc-card-badge">CALCULUS</div>
-            <div class="doc-card-title">Definite Integrals & Arc Lengths</div>
-            <div class="doc-card-details"><span>📖 Lecture Summary</span></div>
-          </button>
-
-          <button class="doc-card" data-drive-id="PASTE_DRIVE_ID_3_HERE">
-            <div class="doc-card-badge">CHEMISTRY</div>
-            <div class="doc-card-title">Organic Reaction Mechanisms</div>
-            <div class="doc-card-details"><span>📖 Full Compilation</span></div>
-          </button>
+        <!-- Dynamic List of Folders / PDFs -->
+        <div class="document-list" id="directory-container">
+          <!-- Populated dynamically via JS -->
         </div>
 
         <div class="sidebar-footer">
           <div class="watermark-notice">
-            <span>STAMP ACTIVE</span>
-            <p>Every page rendered bears your encrypted roll number watermark.</p>
+            <span>AUDIT ACTIVE</span>
+            <p>Every rendered page bears your roll identifier watermark.</p>
           </div>
         </div>
       </aside>
 
+      <!-- CANVAS VIEWER STAGE -->
       <section class="viewer-stage">
-        <div class="hud-controls glass-panel">
+        <div class="hud-controls glass-panel" id="hud" style="display: none;">
           <div class="hud-group">
             <button id="prev-page" class="hud-btn" title="Previous Page">◀</button>
             <div class="page-counter">
@@ -442,7 +519,11 @@
         </div>
 
         <div class="canvas-viewport" id="viewport">
-          <div class="canvas-shadow-wrap">
+          <div class="empty-state" id="empty-state">
+            <div class="empty-icon">📁</div>
+            <p>Select a notebook from the directory to start reading.</p>
+          </div>
+          <div class="canvas-shadow-wrap" id="canvas-container" style="display: none;">
             <canvas id="pdf-render-canvas"></canvas>
           </div>
         </div>
@@ -451,7 +532,86 @@
   </div>
 
   <script>
-    // 1. Firebase Initialization
+    // ==========================================
+    // 1. YOUR GOOGLE DRIVE DIRECTORY STRUCTURE
+    // ==========================================
+    // Add all your subjects, sub-folders, and PDF file IDs here!
+    const VAULT_FILE_SYSTEM = {
+      name: "root",
+      type: "folder",
+      contents: [
+        {
+          name: "Physics",
+          type: "folder",
+          contents: [
+            {
+              name: "Vector Mechanics & Motion.pdf",
+              type: "file",
+              driveId: "PASTE_PHYSICS_FILE_ID_1",
+              details: "Paper 1 • Class Notes"
+            },
+            {
+              name: "Thermodynamics & Heat.pdf",
+              type: "file",
+              driveId: "PASTE_PHYSICS_FILE_ID_2",
+              details: "Paper 1 • Ch 10"
+            }
+          ]
+        },
+        {
+          name: "Higher Mathematics",
+          type: "folder",
+          contents: [
+            {
+              name: "Definite Integrals & Areas.pdf",
+              type: "file",
+              driveId: "PASTE_MATH_FILE_ID_1",
+              details: "Paper 1 • Calculus"
+            },
+            {
+              name: "Differential Calculus Full.pdf",
+              type: "file",
+              driveId: "PASTE_MATH_FILE_ID_2",
+              details: "Formulae & Board Problems"
+            }
+          ]
+        },
+        {
+          name: "Botany",
+          type: "folder",
+          contents: [
+            {
+              name: "Cell Structure & Genetics.pdf",
+              type: "file",
+              driveId: "PASTE_BOTANY_FILE_ID_1",
+              details: "Chapter 1-3 Summary"
+            },
+            {
+              name: "Plant Physiology & Photosynthesis.pdf",
+              type: "file",
+              driveId: "PASTE_BOTANY_FILE_ID_2",
+              details: "Handwritten Master Notes"
+            }
+          ]
+        },
+        {
+          name: "Chemistry",
+          type: "folder",
+          contents: [
+            {
+              name: "Organic Reaction Mechanisms.pdf",
+              type: "file",
+              driveId: "PASTE_CHEMISTRY_FILE_ID_1",
+              details: "Paper 2 • Organic Chemistry"
+            }
+          ]
+        }
+      ]
+    };
+
+    // ==========================================
+    // 2. FIREBASE AUTH CONFIGURATION
+    // ==========================================
     const firebaseConfig = {
       apiKey: "AIzaSyAzCP8bLPAJUju-ybhsmFiWGoSu8aEBmFc",
       authDomain: "faculty-notes-auth.firebaseapp.com",
@@ -466,13 +626,17 @@
     }
     const db = firebase.firestore();
 
-    // 2. State Management
+    // ==========================================
+    // 3. GLOBAL APPLICATION STATE
+    // ==========================================
     let currentRoll = null;
     let currentPdfDoc = null;
     let currentPageNum = 1;
     let currentZoom = 1.0;
+    let currentNavPath = []; // Array of folders traversed (e.g. ['Physics'])
+    let activeFileDriveId = null;
 
-    // 3. Login Verification
+    // Login Handler
     async function handleLogin() {
       const roll = document.getElementById('roll-input').value.trim();
       const pass = document.getElementById('pass-input').value.trim();
@@ -494,7 +658,7 @@
         const docSnap = await db.collection('whitelist').doc(roll).get();
 
         if (!docSnap.exists) {
-          errText.innerText = `Roll #${roll} is not registered in the whitelist.`;
+          errText.innerText = `Roll #${roll} not whitelisted.`;
           authError.style.display = 'flex';
           resetBtn();
           return;
@@ -516,7 +680,8 @@
         document.getElementById('portal-view').style.display = 'flex';
         resetBtn();
 
-        initDefaultDocument();
+        // Start at root directory
+        renderCurrentDirectory();
       } catch (err) {
         console.error("Auth Exception:", err);
         errText.innerText = "Authentication error. Check connectivity.";
@@ -526,7 +691,7 @@
 
       function resetBtn() {
         loginBtn.disabled = false;
-        loginBtn.innerHTML = `<span>INITIALIZE DECRYPTION</span><span>→</span>`;
+        loginBtn.innerHTML = `<span>DECRYPT & ENTER</span><span>→</span>`;
       }
     }
 
@@ -540,17 +705,115 @@
       document.getElementById('auth-view').style.display = 'flex';
     });
 
-    // 4. Memory Stream PDF Loader (No Direct URLs Exposed)
-    async function loadProtectedPDF(driveId) {
-      if (!window.pdfjsLib) return;
-      if (!driveId || driveId.includes("PASTE_DRIVE_ID")) {
-        console.warn("No valid Google Drive file ID provided.");
+    // ==========================================
+    // 4. DIRECTORY NAVIGATION SYSTEM
+    // ==========================================
+    function getCurrentFolder() {
+      let node = VAULT_FILE_SYSTEM;
+      for (const folderName of currentNavPath) {
+        const next = node.contents.find(item => item.name === folderName && item.type === "folder");
+        if (next) node = next;
+      }
+      return node;
+    }
+
+    function renderCurrentDirectory() {
+      const folder = getCurrentFolder();
+      const container = document.getElementById('directory-container');
+      const breadcrumbs = document.getElementById('breadcrumbs-container');
+      container.innerHTML = "";
+
+      // 1. Render Breadcrumbs
+      let breadcrumbHtml = `<button class="crumb-btn" onclick="navigateToLevel(-1)">ROOT</button>`;
+      currentNavPath.forEach((name, idx) => {
+        breadcrumbHtml += ` <span>/</span> <button class="crumb-btn" onclick="navigateToLevel(${idx})">${name}</button>`;
+      });
+      breadcrumbs.innerHTML = breadcrumbHtml;
+
+      // 2. Render Back Button if in subfolder
+      if (currentNavPath.length > 0) {
+        const backBtn = document.createElement('div');
+        backBtn.className = 'dir-item';
+        backBtn.innerHTML = `
+          <span class="item-icon">⤴</span>
+          <div class="item-info">
+            <div class="item-title">.. (Go Up)</div>
+          </div>
+        `;
+        backBtn.onclick = () => {
+          currentNavPath.pop();
+          renderCurrentDirectory();
+        };
+        container.appendChild(backBtn);
+      }
+
+      // 3. Render Items in Current Folder
+      if (!folder.contents || folder.contents.length === 0) {
+        container.innerHTML += `<div style="font-size: 12px; color: var(--text-muted); padding: 12px;">This directory is empty.</div>`;
         return;
       }
 
+      folder.contents.forEach(item => {
+        const itemEl = document.createElement('div');
+        const isFolder = item.type === "folder";
+        const isActiveFile = !isFolder && item.driveId === activeFileDriveId;
+
+        itemEl.className = `dir-item ${isActiveFile ? 'active' : ''}`;
+        itemEl.innerHTML = `
+          <span class="item-icon">${isFolder ? '📁' : '📄'}</span>
+          <div class="item-info">
+            <div class="item-title">${item.name}</div>
+            <div class="item-meta">${isFolder ? `${item.contents ? item.contents.length : 0} items` : (item.details || 'PDF Notebook')}</div>
+          </div>
+          <span class="item-arrow">${isFolder ? '›' : ''}</span>
+        `;
+
+        itemEl.onclick = () => {
+          if (isFolder) {
+            currentNavPath.push(item.name);
+            renderCurrentDirectory();
+          } else {
+            // Highlight selected file
+            activeFileDriveId = item.driveId;
+            document.querySelectorAll('.dir-item').forEach(el => el.classList.remove('active'));
+            itemEl.classList.add('active');
+            
+            document.getElementById('active-doc-title').innerText = item.name;
+            loadProtectedPDF(item.driveId);
+          }
+        };
+
+        container.appendChild(itemEl);
+      });
+    }
+
+    // Jump navigation via breadcrumbs
+    window.navigateToLevel = function(index) {
+      if (index === -1) {
+        currentNavPath = [];
+      } else {
+        currentNavPath = currentNavPath.slice(0, index + 1);
+      }
+      renderCurrentDirectory();
+    };
+
+    // ==========================================
+    // 5. IN-MEMORY GOOGLE DRIVE STREAMING (PDF.JS)
+    // ==========================================
+    async function loadProtectedPDF(driveId) {
+      if (!window.pdfjsLib) return;
+      if (!driveId || driveId.includes("PASTE_")) {
+        alert("Please set a real Google Drive file ID for this file in VAULT_FILE_SYSTEM.");
+        return;
+      }
+
+      document.getElementById('empty-state').style.display = 'none';
+      document.getElementById('canvas-container').style.display = 'inline-block';
+      document.getElementById('hud').style.display = 'flex';
+
       try {
-        // Fetch raw bytes from serverless proxy
-        const res = await fetch(`/api/stream?id=${encodeURIComponent(driveId)}`);
+        const directUrl = `https://lh3.googleusercontent.com/d/${encodeURIComponent(driveId)}`;
+        const res = await fetch(directUrl);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
         const arrayBuffer = await res.arrayBuffer();
@@ -565,10 +828,13 @@
         renderCurrentPage();
       } catch (err) {
         console.error("Secure stream loading error:", err);
+        alert("Could not load PDF. Verify that the file in Google Drive has 'Anyone with the link' view access enabled.");
       }
     }
 
-    // 5. Canvas Renderer with Burned-In Watermark
+    // ==========================================
+    // 6. CANVAS RENDERER + WATERMARK BURN
+    // ==========================================
     function renderCurrentPage() {
       if (!currentPdfDoc) return;
       const canvas = document.getElementById('pdf-render-canvas');
@@ -606,30 +872,9 @@
       document.getElementById('page-num').innerText = currentPageNum;
     }
 
-    // 6. Sidebar & HUD Handlers
-    document.querySelectorAll('.doc-card').forEach(card => {
-      card.addEventListener('click', () => {
-        document.querySelectorAll('.doc-card').forEach(c => c.classList.remove('active'));
-        card.classList.add('active');
-
-        const title = card.querySelector('.doc-card-title').innerText;
-        document.getElementById('active-doc-title').innerText = title;
-
-        const driveId = card.getAttribute('data-drive-id');
-        loadProtectedPDF(driveId);
-      });
-    });
-
-    function initDefaultDocument() {
-      const activeCard = document.querySelector('.doc-card.active');
-      if (activeCard) {
-        document.getElementById('active-doc-title').innerText = activeCard.querySelector('.doc-card-title').innerText;
-        const driveId = activeCard.getAttribute('data-drive-id');
-        loadProtectedPDF(driveId);
-      }
-    }
-
-    // HUD Pagination & Zoom
+    // ==========================================
+    // 7. HUD CONTROLS & SECURITY INTERCEPTORS
+    // ==========================================
     document.getElementById('prev-page').addEventListener('click', () => {
       if (currentPageNum > 1) { currentPageNum--; renderCurrentPage(); }
     });
@@ -651,13 +896,14 @@
       }
     });
 
-    // Anti-save keyboard deterrents
+    // Anti-save / anti-inspect
     document.addEventListener('contextmenu', e => e.preventDefault());
     document.addEventListener('keydown', e => {
       if ((e.ctrlKey || e.metaKey) && ['s', 'p', 'u'].includes(e.key.toLowerCase())) {
         e.preventDefault();
       }
     });
+    document.addEventListener('dragstart', e => e.preventDefault());
   </script>
 </body>
 </html>
