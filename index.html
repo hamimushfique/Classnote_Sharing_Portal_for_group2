@@ -812,7 +812,7 @@
       document.getElementById('hud').style.display = 'flex';
 
       try {
-        const directUrl = `https://lh3.googleusercontent.com/d/${encodeURIComponent(driveId)}`;
+        const directUrl = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(`https://drive.google.com/uc?export=download&id=${driveId}`)}`;
         const res = await fetch(directUrl);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
