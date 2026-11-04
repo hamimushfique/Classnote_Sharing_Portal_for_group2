@@ -5,22 +5,310 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Faculty Vault // Restricted Reader</title>
   
-  <!-- Inter & JetBrains Mono Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   
-  <link rel="stylesheet" href="style.css" />
-  <!-- Mozilla PDF.js Library -->
+  <!-- Mozilla PDF.js Core -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+  <!-- Firebase App & Firestore -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --panel: rgba(18, 24, 38, 0.75);
+      --border: rgba(255, 255, 255, 0.08);
+      --accent: #3b82f6;
+      --accent-glow: rgba(59, 130, 246, 0.35);
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --danger: #ef4444;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text-main);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .ambient-glow {
+      position: fixed;
+      width: 450px;
+      height: 450px;
+      border-radius: 50%;
+      filter: blur(140px);
+      z-index: 0;
+      pointer-events: none;
+    }
+    .glow-1 { top: -100px; left: -100px; background: rgba(59, 130, 246, 0.15); }
+    .glow-2 { bottom: -100px; right: -100px; background: rgba(239, 68, 68, 0.12); }
+
+    .glass-panel {
+      background: var(--panel);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+
+    /* AUTH VIEW */
+    .auth-wrapper {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+      padding: 20px;
+    }
+    .auth-card {
+      width: 100%;
+      max-width: 420px;
+      padding: 32px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+    }
+    .badge-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--accent);
+      background: rgba(59, 130, 246, 0.1);
+      padding: 4px 10px;
+      border-radius: 20px;
+      margin-bottom: 16px;
+    }
+    .blinking-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+    .auth-header h1 { font-size: 24px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 8px; }
+    .auth-header p { font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-bottom: 24px; }
+    .input-box { margin-bottom: 16px; }
+    .input-box label { display: block; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-muted); margin-bottom: 6px; }
+    .input-inner {
+      display: flex;
+      align-items: center;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0 12px;
+    }
+    .input-prefix { font-family: 'JetBrains Mono', monospace; color: var(--text-muted); font-size: 14px; }
+    .input-inner input {
+      width: 100%;
+      background: transparent;
+      border: none;
+      padding: 12px;
+      color: var(--text-main);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      outline: none;
+    }
+    .glow-button {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 14px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      margin-top: 20px;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 20px var(--accent-glow);
+    }
+    .glow-button:hover { filter: brightness(1.1); }
+    .glow-button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .error-banner {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: 6px;
+      padding: 10px;
+      margin-top: 16px;
+      font-size: 12px;
+      color: #fca5a5;
+    }
+    .auth-footer { margin-top: 24px; font-size: 11px; color: var(--text-muted); text-align: center; }
+
+    /* PORTAL VIEW */
+    .portal-wrapper {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      position: relative;
+      z-index: 1;
+    }
+    .top-nav {
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      border-radius: 0;
+      border-top: none;
+      border-left: none;
+      border-right: none;
+    }
+    .brand-badge {
+      font-weight: 800;
+      background: var(--accent);
+      color: white;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    .brand-title { display: flex; align-items: center; gap: 8px; margin-left: 10px; }
+    .brand-title span:first-child { font-weight: 700; font-size: 14px; letter-spacing: 0.5px; }
+    .version-tag { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--accent); background: rgba(59, 130, 246, 0.15); padding: 2px 6px; border-radius: 4px; }
+    .nav-left, .nav-right { display: flex; align-items: center; }
+    .document-name-header { font-size: 13px; font-weight: 600; color: #d1d5db; }
+    .user-chip {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      background: rgba(255, 255, 255, 0.05);
+      padding: 6px 12px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      margin-right: 12px;
+    }
+    .chip-avatar { background: var(--border); font-size: 10px; padding: 2px 5px; border-radius: 4px; }
+    .icon-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      border-radius: 8px;
+      padding: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+    }
+    .icon-btn:hover { color: var(--danger); border-color: rgba(239, 68, 68, 0.4); }
+
+    .workspace {
+      display: flex;
+      flex: 1;
+      height: calc(100vh - 60px);
+      overflow: hidden;
+    }
+    .sidebar {
+      width: 320px;
+      border-radius: 0;
+      border-top: none;
+      border-bottom: none;
+      border-left: none;
+      display: flex;
+      flex-direction: column;
+    }
+    .sidebar-header { padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
+    .sidebar-label { font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700; color: var(--text-muted); }
+    .badge-count { font-size: 11px; background: rgba(255, 255, 255, 0.08); padding: 2px 6px; border-radius: 10px; }
+    .document-list { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+    .doc-card {
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      text-align: left;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .doc-card:hover { border-color: rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.03); }
+    .doc-card.active { border-color: var(--accent); background: rgba(59, 130, 246, 0.08); }
+    .doc-card-badge { font-family: 'JetBrains Mono', monospace; font-size: 9px; font-weight: 700; color: var(--accent); margin-bottom: 4px; }
+    .doc-card-title { font-size: 13px; font-weight: 600; color: var(--text-main); margin-bottom: 6px; line-height: 1.3; }
+    .doc-card-details { font-size: 11px; color: var(--text-muted); }
+    .sidebar-footer { padding: 16px; border-top: 1px solid var(--border); }
+    .watermark-notice { background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 6px; padding: 10px; }
+    .watermark-notice span { font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700; color: var(--danger); display: block; margin-bottom: 4px; }
+    .watermark-notice p { font-size: 11px; color: #9ca3af; line-height: 1.4; }
+
+    .viewer-stage {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      background: #060911;
+      overflow: hidden;
+    }
+    .hud-controls {
+      position: absolute;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 6px 12px;
+      z-index: 5;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
+    }
+    .hud-group { display: flex; align-items: center; gap: 8px; }
+    .hud-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+    }
+    .hud-btn:hover { background: rgba(255, 255, 255, 0.15); }
+    .page-counter, .zoom-value { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+    .hud-divider { width: 1px; height: 16px; background: var(--border); }
+
+    .canvas-viewport {
+      flex: 1;
+      overflow: auto;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 70px 20px 40px;
+    }
+    .canvas-shadow-wrap {
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.7);
+      border-radius: 4px;
+      overflow: hidden;
+      display: inline-block;
+    }
+    #pdf-render-canvas { display: block; }
+  </style>
 </head>
 <body>
 
-  <!-- Background Ambient Glows -->
   <div class="ambient-glow glow-1"></div>
   <div class="ambient-glow glow-2"></div>
 
-  <!-- ================= AUTH VIEW ================= -->
+  <!-- AUTH VIEW -->
   <main id="auth-view" class="auth-wrapper">
     <div class="auth-card glass-panel">
       <div class="auth-header">
@@ -29,7 +317,7 @@
           <span>INTERNAL NODE ONLY</span>
         </div>
         <h1>ACADEMIC VAULT</h1>
-        <p>Restricted access node for authorized faculty peers. Enter your credentials to decrypt notes.</p>
+        <p>Restricted access node for authorized peers. Enter credentials to decrypt notes.</p>
       </div>
 
       <form id="login-form" onsubmit="return false;">
@@ -37,13 +325,7 @@
           <label for="roll-input">ROLL NUMBER</label>
           <div class="input-inner">
             <span class="input-prefix">#</span>
-            <input 
-              type="text" 
-              id="roll-input" 
-              placeholder="e.g. 101" 
-              autocomplete="off" 
-              required 
-            />
+            <input type="text" id="roll-input" placeholder="e.g. 101" autocomplete="off" required />
           </div>
         </div>
 
@@ -51,41 +333,35 @@
           <label for="pass-input">ACCESS KEY</label>
           <div class="input-inner">
             <span class="input-prefix">⚷</span>
-            <input 
-              type="password" 
-              id="pass-input" 
-              placeholder="••••••••••••" 
-              required 
-            />
+            <input type="password" id="pass-input" placeholder="••••••••••••" required />
           </div>
         </div>
 
         <button type="submit" id="btn-login" class="glow-button">
           <span>INITIALIZE DECRYPTION</span>
-          <span class="btn-arrow">→</span>
+          <span>→</span>
         </button>
         
         <div id="auth-error" class="error-banner" style="display: none;">
-          <span class="err-icon">⚠</span>
-          <span id="err-text">Authentication failure: Unauthorized Roll.</span>
+          <span>⚠</span>
+          <span id="err-text">Authentication failure.</span>
         </div>
       </form>
 
       <footer class="auth-footer">
-        <span class="lock-icon">🔒</span> Protected by dynamic roll-stamped canvas rendering
+        🔒 Protected by memory-stream canvas rendering
       </footer>
     </div>
   </main>
 
-  <!-- ================= PORTAL VIEW ================= -->
+  <!-- PORTAL VIEW -->
   <div id="portal-view" class="portal-wrapper" style="display: none;">
-    <!-- Top Navigation -->
     <header class="top-nav glass-panel">
       <div class="nav-left">
         <div class="brand-badge">ND</div>
         <div class="brand-title">
           <span>FACULTY_VAULT</span>
-          <span class="version-tag">v2.4-SECURE</span>
+          <span class="version-tag">v3.0-SECURE</span>
         </div>
       </div>
 
@@ -108,44 +384,31 @@
       </div>
     </header>
 
-    <!-- Workspace -->
     <div class="workspace">
-      <!-- Sidebar / Catalog -->
       <aside class="sidebar glass-panel">
         <div class="sidebar-header">
           <span class="sidebar-label">AVAILABLE ARCHIVES</span>
           <span class="badge-count" id="doc-count">3</span>
         </div>
 
+        <!-- PASTE YOUR GOOGLE DRIVE FILE IDS IN data-drive-id -->
         <div class="document-list" id="doc-list-container">
-          <button class="doc-card active" data-file="sample1.pdf">
+          <button class="doc-card active" data-drive-id="PASTE_DRIVE_ID_1_HERE">
             <div class="doc-card-badge">PHYSICS</div>
             <div class="doc-card-title">Vector Mechanics & Newton's Laws</div>
-            <div class="doc-card-details">
-              <span>📖 52 Pages</span>
-              <span>•</span>
-              <span>Class Notes</span>
-            </div>
+            <div class="doc-card-details"><span>📖 Class Notes</span></div>
           </button>
 
-          <button class="doc-card" data-file="sample2.pdf">
+          <button class="doc-card" data-drive-id="PASTE_DRIVE_ID_2_HERE">
             <div class="doc-card-badge">CALCULUS</div>
             <div class="doc-card-title">Definite Integrals & Arc Lengths</div>
-            <div class="doc-card-details">
-              <span>📖 38 Pages</span>
-              <span>•</span>
-              <span>Class Notes</span>
-            </div>
+            <div class="doc-card-details"><span>📖 Lecture Summary</span></div>
           </button>
 
-          <button class="doc-card" data-file="sample3.pdf">
+          <button class="doc-card" data-drive-id="PASTE_DRIVE_ID_3_HERE">
             <div class="doc-card-badge">CHEMISTRY</div>
             <div class="doc-card-title">Organic Reaction Mechanisms</div>
-            <div class="doc-card-details">
-              <span>📖 64 Pages</span>
-              <span>•</span>
-              <span>Summary</span>
-            </div>
+            <div class="doc-card-details"><span>📖 Full Compilation</span></div>
           </button>
         </div>
 
@@ -157,15 +420,13 @@
         </div>
       </aside>
 
-      <!-- Viewer Stage -->
       <section class="viewer-stage">
-        <!-- Floating Reader HUD Controls -->
         <div class="hud-controls glass-panel">
           <div class="hud-group">
             <button id="prev-page" class="hud-btn" title="Previous Page">◀</button>
             <div class="page-counter">
               <span id="page-num">1</span>
-              <span class="divider">/</span>
+              <span>/</span>
               <span id="page-count">--</span>
             </div>
             <button id="next-page" class="hud-btn" title="Next Page">▶</button>
@@ -180,7 +441,6 @@
           </div>
         </div>
 
-        <!-- Canvas Viewport -->
         <div class="canvas-viewport" id="viewport">
           <div class="canvas-shadow-wrap">
             <canvas id="pdf-render-canvas"></canvas>
@@ -189,21 +449,16 @@
       </section>
     </div>
   </div>
-<!-- Firebase App & Firestore Libraries -->
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 
-  <!-- Embedded Portal & Whitelist Logic -->
   <script>
-    // 1. Firebase Credentials
+    // 1. Firebase Initialization
     const firebaseConfig = {
       apiKey: "AIzaSyAzCP8bLPAJUju-ybhsmFiWGoSu8aEBmFc",
       authDomain: "faculty-notes-auth.firebaseapp.com",
       projectId: "faculty-notes-auth",
       storageBucket: "faculty-notes-auth.firebasestorage.app",
       messagingSenderId: "579711849456",
-      appId: "1:579711849456:web:430835daf0a4b399a74335",
-      measurementId: "G-8REEQCSJS6"
+      appId: "1:579711849456:web:430835daf0a4b399a74335"
     };
 
     if (!firebase.apps.length) {
@@ -211,28 +466,22 @@
     }
     const db = firebase.firestore();
 
-    // 2. Global State
+    // 2. State Management
     let currentRoll = null;
     let currentPdfDoc = null;
     let currentPageNum = 1;
     let currentZoom = 1.0;
 
-    // 3. Login Action
+    // 3. Login Verification
     async function handleLogin() {
-      const rollInput = document.getElementById('roll-input');
-      const passInput = document.getElementById('pass-input');
+      const roll = document.getElementById('roll-input').value.trim();
+      const pass = document.getElementById('pass-input').value.trim();
       const loginBtn = document.getElementById('btn-login');
       const authError = document.getElementById('auth-error');
       const errText = document.getElementById('err-text');
-      const authView = document.getElementById('auth-view');
-      const portalView = document.getElementById('portal-view');
-      const userTag = document.getElementById('current-user-tag');
-
-      const roll = rollInput.value.trim();
-      const pass = passInput.value.trim();
 
       if (!roll || !pass) {
-        errText.innerText = "Please enter both Roll Number and Access Key.";
+        errText.innerText = "Please provide both Roll Number and Access Key.";
         authError.style.display = 'flex';
         return;
       }
@@ -242,51 +491,45 @@
       authError.style.display = 'none';
 
       try {
-        const docRef = db.collection('whitelist').doc(roll);
-        const docSnap = await docRef.get();
+        const docSnap = await db.collection('whitelist').doc(roll).get();
 
         if (!docSnap.exists) {
-          errText.innerText = `Roll #${roll} not registered in whitelist.`;
+          errText.innerText = `Roll #${roll} is not registered in the whitelist.`;
           authError.style.display = 'flex';
           resetBtn();
           return;
         }
 
         const data = docSnap.data();
-
-        // Check password match
         if (String(data.pass).trim() !== String(pass).trim()) {
-          errText.innerText = "Incorrect Access Key.";
+          errText.innerText = "Access Key verification failed.";
           authError.style.display = 'flex';
           resetBtn();
           return;
         }
 
-        // Success
         currentRoll = roll;
-        userTag.innerText = `Roll: ${currentRoll}`;
+        document.getElementById('current-user-tag').innerText = `Roll: ${currentRoll}`;
         sessionStorage.setItem('vault_auth_roll', currentRoll);
 
-        authView.style.display = 'none';
-        portalView.style.display = 'flex';
+        document.getElementById('auth-view').style.display = 'none';
+        document.getElementById('portal-view').style.display = 'flex';
         resetBtn();
 
         initDefaultDocument();
-
       } catch (err) {
-        console.error("Firestore Error:", err);
-        errText.innerText = "Database connection error. Check console.";
+        console.error("Auth Exception:", err);
+        errText.innerText = "Authentication error. Check connectivity.";
         authError.style.display = 'flex';
         resetBtn();
       }
 
       function resetBtn() {
         loginBtn.disabled = false;
-        loginBtn.innerHTML = `<span>INITIALIZE DECRYPTION</span><span class="btn-arrow">→</span>`;
+        loginBtn.innerHTML = `<span>INITIALIZE DECRYPTION</span><span>→</span>`;
       }
     }
 
-    // Attach to button directly
     document.getElementById('btn-login').addEventListener('click', handleLogin);
 
     // Logout
@@ -297,25 +540,35 @@
       document.getElementById('auth-view').style.display = 'flex';
     });
 
-    // Anti-save / Anti-inspect restrictions
-    document.addEventListener('contextmenu', e => e.preventDefault());
-    document.addEventListener('keydown', e => {
-      if ((e.ctrlKey || e.metaKey) && ['s', 'p', 'u'].includes(e.key.toLowerCase())) {
-        e.preventDefault();
-      }
-    });
-
-    // PDF Canvas & Dynamic Roll Watermark
-    function loadPDF(url) {
+    // 4. Memory Stream PDF Loader (No Direct URLs Exposed)
+    async function loadProtectedPDF(driveId) {
       if (!window.pdfjsLib) return;
-      pdfjsLib.getDocument(url).promise.then(pdf => {
+      if (!driveId || driveId.includes("PASTE_DRIVE_ID")) {
+        console.warn("No valid Google Drive file ID provided.");
+        return;
+      }
+
+      try {
+        // Fetch raw bytes from serverless proxy
+        const res = await fetch(`/api/stream?id=${encodeURIComponent(driveId)}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        const arrayBuffer = await res.arrayBuffer();
+        const typedArray = new Uint8Array(arrayBuffer);
+
+        const loadingTask = pdfjsLib.getDocument({ data: typedArray });
+        const pdf = await loadingTask.promise;
+
         currentPdfDoc = pdf;
         document.getElementById('page-count').innerText = pdf.numPages;
         currentPageNum = 1;
         renderCurrentPage();
-      });
+      } catch (err) {
+        console.error("Secure stream loading error:", err);
+      }
     }
 
+    // 5. Canvas Renderer with Burned-In Watermark
     function renderCurrentPage() {
       if (!currentPdfDoc) return;
       const canvas = document.getElementById('pdf-render-canvas');
@@ -326,16 +579,24 @@
         canvas.height = viewport.height;
         canvas.width = viewport.width;
 
-        page.render({ canvasContext: ctx, viewport: viewport }).promise.then(() => {
+        const renderContext = {
+          canvasContext: ctx,
+          viewport: viewport
+        };
+
+        page.render(renderContext).promise.then(() => {
           if (!currentRoll) return;
+
+          // Paint watermark directly into the canvas bitmap
           ctx.save();
-          ctx.font = 'bold 24px monospace';
-          ctx.fillStyle = 'rgba(255, 51, 102, 0.16)';
-          ctx.rotate(-22 * Math.PI / 180);
-          const watermark = `RESTRICTED COPY • ROLL: ${currentRoll}`;
-          for (let y = -viewport.height; y < viewport.height * 2; y += 190) {
-            for (let x = -viewport.width; x < viewport.width * 2; x += 360) {
-              ctx.fillText(watermark, x, y);
+          ctx.font = 'bold 22px "JetBrains Mono", monospace';
+          ctx.fillStyle = 'rgba(239, 68, 68, 0.18)';
+          ctx.rotate(-25 * Math.PI / 180);
+
+          const watermarkText = `RESTRICTED // ROLL: ${currentRoll} // CONFIDENTIAL`;
+          for (let y = -viewport.height; y < viewport.height * 2; y += 180) {
+            for (let x = -viewport.width; x < viewport.width * 2; x += 380) {
+              ctx.fillText(watermarkText, x, y);
             }
           }
           ctx.restore();
@@ -345,11 +606,30 @@
       document.getElementById('page-num').innerText = currentPageNum;
     }
 
+    // 6. Sidebar & HUD Handlers
+    document.querySelectorAll('.doc-card').forEach(card => {
+      card.addEventListener('click', () => {
+        document.querySelectorAll('.doc-card').forEach(c => c.classList.remove('active'));
+        card.classList.add('active');
+
+        const title = card.querySelector('.doc-card-title').innerText;
+        document.getElementById('active-doc-title').innerText = title;
+
+        const driveId = card.getAttribute('data-drive-id');
+        loadProtectedPDF(driveId);
+      });
+    });
+
     function initDefaultDocument() {
-      loadPDF("https://raw.githubusercontent.com/mozilla/pdf.js/ba2edeae/web/compressed.tracemonkey-pldi-09.pdf");
+      const activeCard = document.querySelector('.doc-card.active');
+      if (activeCard) {
+        document.getElementById('active-doc-title').innerText = activeCard.querySelector('.doc-card-title').innerText;
+        const driveId = activeCard.getAttribute('data-drive-id');
+        loadProtectedPDF(driveId);
+      }
     }
 
-    // Page Navigation
+    // HUD Pagination & Zoom
     document.getElementById('prev-page').addEventListener('click', () => {
       if (currentPageNum > 1) { currentPageNum--; renderCurrentPage(); }
     });
@@ -357,10 +637,26 @@
       if (currentPdfDoc && currentPageNum < currentPdfDoc.numPages) { currentPageNum++; renderCurrentPage(); }
     });
     document.getElementById('zoom-in').addEventListener('click', () => {
-      if (currentZoom < 2.2) { currentZoom += 0.2; renderCurrentPage(); }
+      if (currentZoom < 2.2) {
+        currentZoom += 0.2;
+        document.getElementById('zoom-label').innerText = `${Math.round(currentZoom * 100)}%`;
+        renderCurrentPage();
+      }
     });
     document.getElementById('zoom-out').addEventListener('click', () => {
-      if (currentZoom > 0.6) { currentZoom -= 0.2; renderCurrentPage(); }
+      if (currentZoom > 0.6) {
+        currentZoom -= 0.2;
+        document.getElementById('zoom-label').innerText = `${Math.round(currentZoom * 100)}%`;
+        renderCurrentPage();
+      }
+    });
+
+    // Anti-save keyboard deterrents
+    document.addEventListener('contextmenu', e => e.preventDefault());
+    document.addEventListener('keydown', e => {
+      if ((e.ctrlKey || e.metaKey) && ['s', 'p', 'u'].includes(e.key.toLowerCase())) {
+        e.preventDefault();
+      }
     });
   </script>
 </body>
