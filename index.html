@@ -531,11 +531,15 @@
     </div>
   </div>
 
-  <script>
+ <script>
+    // 0. PDF.js Worker Configuration (Fixes missing worker bug)
+    if (window.pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    }
+
     // ==========================================
     // 1. YOUR GOOGLE DRIVE DIRECTORY STRUCTURE
     // ==========================================
-    // Add all your subjects, sub-folders, and PDF file IDs here!
     const VAULT_FILE_SYSTEM = {
       name: "root",
       type: "folder",
@@ -566,7 +570,7 @@
               name: "Complex Number Classnote.pdf",
               type: "file",
               driveId: "1hxpKjDPuYLJYmKeqqFwa0jhK_hiBw_vF",
-              details: "Faisal aziz sirby 12702027"
+              details: "Faisal aziz sir by 12702027"
             },
             {
               name: "Differential Calculus Full.pdf",
@@ -633,7 +637,7 @@
     let currentPdfDoc = null;
     let currentPageNum = 1;
     let currentZoom = 1.0;
-    let currentNavPath = []; // Array of folders traversed (e.g. ['Physics'])
+    let currentNavPath = [];
     let activeFileDriveId = null;
 
     // Login Handler
@@ -672,16 +676,8 @@
           return;
         }
 
-        currentRoll = roll;
-        document.getElementById('current-user-tag').innerText = `Roll: ${currentRoll}`;
-        sessionStorage.setItem('vault_auth_roll', currentRoll);
-
-        document.getElementById('auth-view').style.display = 'none';
-        document.getElementById('portal-view').style.display = 'flex';
+        loginSuccess(roll);
         resetBtn();
-
-        // Start at root directory
-        renderCurrentDirectory();
       } catch (err) {
         console.error("Auth Exception:", err);
         errText.innerText = "Authentication error. Check connectivity.";
@@ -695,6 +691,29 @@
       }
     }
 
+    function loginSuccess(roll) {
+      currentRoll = roll;
+      document.getElementById('current-user-tag').innerText = `Roll: ${currentRoll}`;
+      sessionStorage.setItem('vault_auth_roll', currentRoll);
+
+      document.getElementById('auth-view').style.display = 'none';
+      document.getElementById('portal-view').style.display = 'flex';
+      renderCurrentDirectory();
+    }
+
+    // Auto-login if session exists
+    window.addEventListener('DOMContentLoaded', () => {
+      const savedRoll = sessionStorage.getItem('vault_auth_roll');
+      if (savedRoll) {
+        loginSuccess(savedRoll);
+      }
+    });
+
+    // Enter key submits form
+    document.getElementById('login-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      handleLogin();
+    });
     document.getElementById('btn-login').addEventListener('click', handleLogin);
 
     // Logout
@@ -723,14 +742,12 @@
       const breadcrumbs = document.getElementById('breadcrumbs-container');
       container.innerHTML = "";
 
-      // 1. Render Breadcrumbs
       let breadcrumbHtml = `<button class="crumb-btn" onclick="navigateToLevel(-1)">ROOT</button>`;
       currentNavPath.forEach((name, idx) => {
         breadcrumbHtml += ` <span>/</span> <button class="crumb-btn" onclick="navigateToLevel(${idx})">${name}</button>`;
       });
       breadcrumbs.innerHTML = breadcrumbHtml;
 
-      // 2. Render Back Button if in subfolder
       if (currentNavPath.length > 0) {
         const backBtn = document.createElement('div');
         backBtn.className = 'dir-item';
@@ -747,7 +764,6 @@
         container.appendChild(backBtn);
       }
 
-      // 3. Render Items in Current Folder
       if (!folder.contents || folder.contents.length === 0) {
         container.innerHTML += `<div style="font-size: 12px; color: var(--text-muted); padding: 12px;">This directory is empty.</div>`;
         return;
@@ -773,7 +789,6 @@
             currentNavPath.push(item.name);
             renderCurrentDirectory();
           } else {
-            // Highlight selected file
             activeFileDriveId = item.driveId;
             document.querySelectorAll('.dir-item').forEach(el => el.classList.remove('active'));
             itemEl.classList.add('active');
@@ -787,7 +802,6 @@
       });
     }
 
-    // Jump navigation via breadcrumbs
     window.navigateToLevel = function(index) {
       if (index === -1) {
         currentNavPath = [];
@@ -797,7 +811,7 @@
       renderCurrentDirectory();
     };
 
-// ==========================================
+    // ==========================================
     // 5. IN-MEMORY GOOGLE DRIVE STREAMING (PDF.JS)
     // ==========================================
     async function loadProtectedPDF(driveId) {
@@ -811,24 +825,38 @@
       document.getElementById('canvas-container').style.display = 'inline-block';
       document.getElementById('hud').style.display = 'flex';
 
-      const googleDownloadUrl = `https://drive.usercontent.google.com/download?id=${driveId}&export=download&confirm=t`;
+      const targetUrl = `https://drive.google.com/uc?export=download&id=${driveId}`;
       
-      // Primary proxy
-      const primaryUrl = `https://corsproxy.io/?url=${encodeURIComponent(googleDownloadUrl)}`;
-      // Fallback proxy if primary is busy
-      const fallbackUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(googleDownloadUrl)}`;
+      // List of proxies to attempt sequentially
+      const proxyGateways = [
+        `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`,
+        `https://corsproxy.io/?url=${encodeURIComponent(targetUrl)}`,
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`
+      ];
+
+      let arrayBuffer = null;
+
+      for (const proxyUrl of proxyGateways) {
+        try {
+          const res = await fetch(proxyUrl);
+          if (res.ok) {
+            arrayBuffer = await res.arrayBuffer();
+            if (arrayBuffer && arrayBuffer.byteLength > 1000) {
+              break; // Successfully downloaded PDF bytes
+            }
+          }
+        } catch (e) {
+          console.warn(`Gateway failed: ${proxyUrl}`, e);
+        }
+      }
+
+      if (!arrayBuffer) {
+        alert("Could not load PDF. Verify that the file in Google Drive has 'Anyone with the link' view access enabled.");
+        return;
+      }
 
       try {
-        let res = await fetch(primaryUrl);
-        if (!res.ok) {
-          console.warn("Primary proxy failed, switching to fallback...");
-          res = await fetch(fallbackUrl);
-        }
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-        const arrayBuffer = await res.arrayBuffer();
         const typedArray = new Uint8Array(arrayBuffer);
-
         const loadingTask = pdfjsLib.getDocument({ data: typedArray });
         const pdf = await loadingTask.promise;
 
@@ -837,10 +865,11 @@
         currentPageNum = 1;
         renderCurrentPage();
       } catch (err) {
-        console.error("Secure stream loading error:", err);
-        alert("Could not load PDF. Verify that the file in Google Drive has 'Anyone with the link' view access enabled.");
+        console.error("PDF Parsing exception:", err);
+        alert("Corrupted PDF stream or file is too large for proxy buffer.");
       }
     }
+
     // ==========================================
     // 6. CANVAS RENDERER + WATERMARK BURN
     // ==========================================
@@ -862,7 +891,6 @@
         page.render(renderContext).promise.then(() => {
           if (!currentRoll) return;
 
-          // Paint watermark directly into the canvas bitmap
           ctx.save();
           ctx.font = 'bold 22px "JetBrains Mono", monospace';
           ctx.fillStyle = 'rgba(239, 68, 68, 0.18)';
@@ -905,7 +933,6 @@
       }
     });
 
-    // Anti-save / anti-inspect
     document.addEventListener('contextmenu', e => e.preventDefault());
     document.addEventListener('keydown', e => {
       if ((e.ctrlKey || e.metaKey) && ['s', 'p', 'u'].includes(e.key.toLowerCase())) {
