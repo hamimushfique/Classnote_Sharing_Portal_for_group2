@@ -361,19 +361,22 @@
     .page-counter, .zoom-value { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
     .hud-divider { width: 1px; height: 16px; background: var(--border); }
 
-    .canvas-viewport {
+   .canvas-viewport {
       flex: 1;
       overflow: auto;
       display: flex;
       justify-content: center;
-      align-items: flex-start;
-      padding: 70px 20px 40px;
+      align-items: stretch;
+      padding: 70px 16px 20px;
     }
     .canvas-shadow-wrap {
       box-shadow: 0 15px 35px rgba(0, 0, 0, 0.7);
-      border-radius: 4px;
-      overflow: hidden;
-      display: inline-block;
+      border-radius: 8px;
+      overflow: visible;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
     }
     #pdf-render-canvas {
       display: block;
@@ -498,7 +501,7 @@
 
       <!-- CANVAS VIEWER STAGE -->
       <section class="viewer-stage">
-        <div class="hud-controls glass-panel" id="hud" style="display: none;">
+<div class="hud-controls glass-panel" id="hud" style="display: none;">
           <div class="hud-group">
             <button id="btn-rotate" class="hud-btn" title="Rotate Document 90°">🔄</button>
             <span id="rotate-label" class="zoom-value">0°</span>
@@ -507,7 +510,16 @@
           <div class="hud-divider"></div>
 
           <div class="hud-group">
-            <button id="btn-reset-view" class="hud-btn" title="Reset Orientation">↺</button>
+            <button id="btn-width-down" class="hud-btn" title="Decrease Viewer Width">−</button>
+            <span id="width-label" class="zoom-value">100%</span>
+            <button id="btn-width-up" class="hud-btn" title="Increase Viewer Width">+</button>
+          </div>
+
+          <div class="hud-divider"></div>
+
+          <div class="hud-group">
+            <button id="btn-fullscreen" class="hud-btn" title="Toggle Fullscreen Width">⛶</button>
+            <button id="btn-reset-view" class="hud-btn" title="Reset Orientation & Size">↺</button>
           </div>
         </div>
 
@@ -633,6 +645,7 @@
     let currentNavPath = [];
     let activeFileDriveId = null;
     let currentRotation = 0;
+    let currentWidthPercent = 100;
     // Login Handler
     async function handleLogin() {
       const roll = document.getElementById('roll-input').value.trim();
@@ -805,7 +818,7 @@
     };
 
     // ==========================================
-    // 5. DIRECT SECURE PREVIEW (WITH ROTATION SHIELD)
+    // 5. DIRECT SECURE PREVIEW (RESIZABLE & ROTATABLE)
     // ==========================================
     function loadProtectedPDF(driveId) {
       if (!driveId || driveId.includes("PASTE_")) {
@@ -814,24 +827,26 @@
       }
 
       currentRotation = 0;
+      currentWidthPercent = 100;
       updateRotationUI();
+      updateWidthUI();
 
       document.getElementById('empty-state').style.display = 'none';
       document.getElementById('hud').style.display = 'flex';
       
       const canvasContainer = document.getElementById('canvas-container');
-      canvasContainer.style.display = 'block';
+      canvasContainer.style.display = 'flex';
 
-      // Outer container with hidden overflow so rotated pages stay neat
+      // Resizable container wrapper
       canvasContainer.innerHTML = `
-        <div id="pdf-frame-wrapper" style="position: relative; width: 100%; max-width: 900px; margin: 0 auto; display: flex; justify-content: center; align-items: center; min-height: 85vh; overflow: visible;">
+        <div id="pdf-frame-wrapper" style="position: relative; width: 100%; max-width: 100%; min-width: 320px; resize: horizontal; overflow: hidden; display: flex; justify-content: center; align-items: center; min-height: 85vh; border: 1px solid var(--border); border-radius: 8px; background: #000;">
           <!-- INVISIBLE SHIELD: Blocks clicks on the top-right pop-out button -->
           <div style="position: absolute; top: 0; right: 0; width: 80px; height: 60px; z-index: 10; background: transparent; cursor: default;"></div>
           
           <iframe 
             id="pdf-frame"
             src="https://drive.google.com/file/d/${driveId}/preview" 
-            style="border: none; border-radius: 8px; width: 100%; height: 85vh; transition: transform 0.3s ease; transform-origin: center center;" 
+            style="border: none; width: 100%; height: 85vh; transition: transform 0.3s ease; transform-origin: center center;" 
             allow="autoplay">
           </iframe>
         </div>
@@ -885,7 +900,6 @@
 
       const frame = document.getElementById('pdf-frame');
       if (frame) {
-        // Apply 90-degree step rotation and scale down when sideways so edges aren't clipped
         if (currentRotation === 90 || currentRotation === 270) {
           frame.style.transform = `rotate(${currentRotation}deg) scale(0.72)`;
         } else {
@@ -894,14 +908,49 @@
       }
     }
 
+    function updateWidthUI() {
+      const label = document.getElementById('width-label');
+      if (label) label.innerText = `${currentWidthPercent}%`;
+
+      const wrapper = document.getElementById('pdf-frame-wrapper');
+      if (wrapper) {
+        wrapper.style.width = `${currentWidthPercent}%`;
+      }
+    }
+
+    // Rotation buttons
     document.getElementById('btn-rotate').addEventListener('click', () => {
       currentRotation = (currentRotation + 90) % 360;
       updateRotationUI();
     });
 
+    // Width increment / decrement buttons
+    document.getElementById('btn-width-up').addEventListener('click', () => {
+      if (currentWidthPercent < 100) {
+        currentWidthPercent = Math.min(100, currentWidthPercent + 10);
+        updateWidthUI();
+      }
+    });
+
+    document.getElementById('btn-width-down').addEventListener('click', () => {
+      if (currentWidthPercent > 50) {
+        currentWidthPercent = Math.max(50, currentWidthPercent - 10);
+        updateWidthUI();
+      }
+    });
+
+    // Toggle full width (100% vs comfortable 75%)
+    document.getElementById('btn-fullscreen').addEventListener('click', () => {
+      currentWidthPercent = currentWidthPercent === 100 ? 75 : 100;
+      updateWidthUI();
+    });
+
+    // Reset View
     document.getElementById('btn-reset-view').addEventListener('click', () => {
       currentRotation = 0;
+      currentWidthPercent = 100;
       updateRotationUI();
+      updateWidthUI();
     });
 
     // Anti-save / anti-inspect
