@@ -500,21 +500,14 @@
       <section class="viewer-stage">
         <div class="hud-controls glass-panel" id="hud" style="display: none;">
           <div class="hud-group">
-            <button id="prev-page" class="hud-btn" title="Previous Page">◀</button>
-            <div class="page-counter">
-              <span id="page-num">1</span>
-              <span>/</span>
-              <span id="page-count">--</span>
-            </div>
-            <button id="next-page" class="hud-btn" title="Next Page">▶</button>
+            <button id="btn-rotate" class="hud-btn" title="Rotate Document 90°">🔄</button>
+            <span id="rotate-label" class="zoom-value">0°</span>
           </div>
 
           <div class="hud-divider"></div>
 
           <div class="hud-group">
-            <button id="zoom-out" class="hud-btn" title="Zoom Out">−</button>
-            <span id="zoom-label" class="zoom-value">100%</span>
-            <button id="zoom-in" class="hud-btn" title="Zoom In">+</button>
+            <button id="btn-reset-view" class="hud-btn" title="Reset Orientation">↺</button>
           </div>
         </div>
 
@@ -639,7 +632,7 @@
     let currentZoom = 1.0;
     let currentNavPath = [];
     let activeFileDriveId = null;
-
+    let currentRotation = 0;
     // Login Handler
     async function handleLogin() {
       const roll = document.getElementById('roll-input').value.trim();
@@ -812,7 +805,7 @@
     };
 
     // ==========================================
-    // 5. DIRECT SECURE PREVIEW (WITH CLICK-BLOCKER SHIELD)
+    // 5. DIRECT SECURE PREVIEW (WITH ROTATION SHIELD)
     // ==========================================
     function loadProtectedPDF(driveId) {
       if (!driveId || driveId.includes("PASTE_")) {
@@ -820,19 +813,25 @@
         return;
       }
 
+      currentRotation = 0;
+      updateRotationUI();
+
       document.getElementById('empty-state').style.display = 'none';
+      document.getElementById('hud').style.display = 'flex';
+      
       const canvasContainer = document.getElementById('canvas-container');
       canvasContainer.style.display = 'block';
 
-      // Embed Google Drive viewer with an invisible shield covering the top-right button
+      // Outer container with hidden overflow so rotated pages stay neat
       canvasContainer.innerHTML = `
-        <div style="position: relative; width: 100%; max-width: 900px; margin: 0 auto;">
+        <div id="pdf-frame-wrapper" style="position: relative; width: 100%; max-width: 900px; margin: 0 auto; display: flex; justify-content: center; align-items: center; min-height: 85vh; overflow: visible;">
           <!-- INVISIBLE SHIELD: Blocks clicks on the top-right pop-out button -->
           <div style="position: absolute; top: 0; right: 0; width: 80px; height: 60px; z-index: 10; background: transparent; cursor: default;"></div>
           
           <iframe 
+            id="pdf-frame"
             src="https://drive.google.com/file/d/${driveId}/preview" 
-            style="border: none; border-radius: 8px; width: 100%; height: 85vh;" 
+            style="border: none; border-radius: 8px; width: 100%; height: 85vh; transition: transform 0.3s ease; transform-origin: center center;" 
             allow="autoplay">
           </iframe>
         </div>
@@ -880,27 +879,32 @@
     // ==========================================
     // 7. HUD CONTROLS & SECURITY INTERCEPTORS
     // ==========================================
-    document.getElementById('prev-page').addEventListener('click', () => {
-      if (currentPageNum > 1) { currentPageNum--; renderCurrentPage(); }
-    });
-    document.getElementById('next-page').addEventListener('click', () => {
-      if (currentPdfDoc && currentPageNum < currentPdfDoc.numPages) { currentPageNum++; renderCurrentPage(); }
-    });
-    document.getElementById('zoom-in').addEventListener('click', () => {
-      if (currentZoom < 2.2) {
-        currentZoom += 0.2;
-        document.getElementById('zoom-label').innerText = `${Math.round(currentZoom * 100)}%`;
-        renderCurrentPage();
+    function updateRotationUI() {
+      const label = document.getElementById('rotate-label');
+      if (label) label.innerText = `${currentRotation}°`;
+
+      const frame = document.getElementById('pdf-frame');
+      if (frame) {
+        // Apply 90-degree step rotation and scale down when sideways so edges aren't clipped
+        if (currentRotation === 90 || currentRotation === 270) {
+          frame.style.transform = `rotate(${currentRotation}deg) scale(0.72)`;
+        } else {
+          frame.style.transform = `rotate(${currentRotation}deg) scale(1)`;
+        }
       }
-    });
-    document.getElementById('zoom-out').addEventListener('click', () => {
-      if (currentZoom > 0.6) {
-        currentZoom -= 0.2;
-        document.getElementById('zoom-label').innerText = `${Math.round(currentZoom * 100)}%`;
-        renderCurrentPage();
-      }
+    }
+
+    document.getElementById('btn-rotate').addEventListener('click', () => {
+      currentRotation = (currentRotation + 90) % 360;
+      updateRotationUI();
     });
 
+    document.getElementById('btn-reset-view').addEventListener('click', () => {
+      currentRotation = 0;
+      updateRotationUI();
+    });
+
+    // Anti-save / anti-inspect
     document.addEventListener('contextmenu', e => e.preventDefault());
     document.addEventListener('keydown', e => {
       if ((e.ctrlKey || e.metaKey) && ['s', 'p', 'u'].includes(e.key.toLowerCase())) {
