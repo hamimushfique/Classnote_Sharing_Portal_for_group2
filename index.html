@@ -812,64 +812,29 @@
     };
 
     // ==========================================
-    // 5. IN-MEMORY GOOGLE DRIVE STREAMING (PDF.JS)
+    // 5. DIRECT SECURE PREVIEW (NO PROXY / NO CORS)
     // ==========================================
-    async function loadProtectedPDF(driveId) {
-      if (!window.pdfjsLib) return;
+    function loadProtectedPDF(driveId) {
       if (!driveId || driveId.includes("PASTE_")) {
-        alert("Please set a real Google Drive file ID for this file in VAULT_FILE_SYSTEM.");
+        alert("Please set a real Google Drive file ID.");
         return;
       }
 
       document.getElementById('empty-state').style.display = 'none';
-      document.getElementById('canvas-container').style.display = 'inline-block';
-      document.getElementById('hud').style.display = 'flex';
+      const canvasContainer = document.getElementById('canvas-container');
+      canvasContainer.style.display = 'block';
 
-      const targetUrl = `https://drive.google.com/uc?export=download&id=${driveId}`;
-      
-      // List of proxies to attempt sequentially
-      const proxyGateways = [
-        `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`,
-        `https://corsproxy.io/?url=${encodeURIComponent(targetUrl)}`,
-        `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`
-      ];
-
-      let arrayBuffer = null;
-
-      for (const proxyUrl of proxyGateways) {
-        try {
-          const res = await fetch(proxyUrl);
-          if (res.ok) {
-            arrayBuffer = await res.arrayBuffer();
-            if (arrayBuffer && arrayBuffer.byteLength > 1000) {
-              break; // Successfully downloaded PDF bytes
-            }
-          }
-        } catch (e) {
-          console.warn(`Gateway failed: ${proxyUrl}`, e);
-        }
-      }
-
-      if (!arrayBuffer) {
-        alert("Could not load PDF. Verify that the file in Google Drive has 'Anyone with the link' view access enabled.");
-        return;
-      }
-
-      try {
-        const typedArray = new Uint8Array(arrayBuffer);
-        const loadingTask = pdfjsLib.getDocument({ data: typedArray });
-        const pdf = await loadingTask.promise;
-
-        currentPdfDoc = pdf;
-        document.getElementById('page-count').innerText = pdf.numPages;
-        currentPageNum = 1;
-        renderCurrentPage();
-      } catch (err) {
-        console.error("PDF Parsing exception:", err);
-        alert("Corrupted PDF stream or file is too large for proxy buffer.");
-      }
+      // Embed Google Drive's native secure viewer
+      canvasContainer.innerHTML = `
+        <iframe 
+          src="https://drive.google.com/file/d/${driveId}/preview" 
+          width="100%" 
+          height="800px" 
+          style="border: none; border-radius: 8px; width: 850px; height: 85vh;" 
+          allow="autoplay">
+        </iframe>
+      `;
     }
-
     // ==========================================
     // 6. CANVAS RENDERER + WATERMARK BURN
     // ==========================================
