@@ -812,7 +812,7 @@
     };
 
     // ==========================================
-    // 5. DIRECT SECURE PREVIEW (NO PROXY / NO CORS)
+    // 5. DIRECT SECURE PREVIEW (WITH CLICK-BLOCKER SHIELD)
     // ==========================================
     function loadProtectedPDF(driveId) {
       if (!driveId || driveId.includes("PASTE_")) {
@@ -824,15 +824,18 @@
       const canvasContainer = document.getElementById('canvas-container');
       canvasContainer.style.display = 'block';
 
-      // Embed Google Drive's native secure viewer
+      // Embed Google Drive viewer with an invisible shield covering the top-right button
       canvasContainer.innerHTML = `
-        <iframe 
-          src="https://drive.google.com/file/d/${driveId}/preview" 
-          width="100%" 
-          height="800px" 
-          style="border: none; border-radius: 8px; width: 850px; height: 85vh;" 
-          allow="autoplay">
-        </iframe>
+        <div style="position: relative; width: 100%; max-width: 900px; margin: 0 auto;">
+          <!-- INVISIBLE SHIELD: Blocks clicks on the top-right pop-out button -->
+          <div style="position: absolute; top: 0; right: 0; width: 80px; height: 60px; z-index: 10; background: transparent; cursor: default;"></div>
+          
+          <iframe 
+            src="https://drive.google.com/file/d/${driveId}/preview" 
+            style="border: none; border-radius: 8px; width: 100%; height: 85vh;" 
+            allow="autoplay">
+          </iframe>
+        </div>
       `;
     }
     // ==========================================
