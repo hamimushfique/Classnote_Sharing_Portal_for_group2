@@ -797,7 +797,7 @@
       renderCurrentDirectory();
     };
 
-    // ==========================================
+// ==========================================
     // 5. IN-MEMORY GOOGLE DRIVE STREAMING (PDF.JS)
     // ==========================================
     async function loadProtectedPDF(driveId) {
@@ -811,9 +811,19 @@
       document.getElementById('canvas-container').style.display = 'inline-block';
       document.getElementById('hud').style.display = 'flex';
 
+      const googleDownloadUrl = `https://drive.usercontent.google.com/download?id=${driveId}&export=download&confirm=t`;
+      
+      // Primary proxy
+      const primaryUrl = `https://corsproxy.io/?url=${encodeURIComponent(googleDownloadUrl)}`;
+      // Fallback proxy if primary is busy
+      const fallbackUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(googleDownloadUrl)}`;
+
       try {
-        const directUrl = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(`https://drive.google.com/uc?export=download&id=${driveId}`)}`;
-        const res = await fetch(directUrl);
+        let res = await fetch(primaryUrl);
+        if (!res.ok) {
+          console.warn("Primary proxy failed, switching to fallback...");
+          res = await fetch(fallbackUrl);
+        }
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
         const arrayBuffer = await res.arrayBuffer();
@@ -831,7 +841,6 @@
         alert("Could not load PDF. Verify that the file in Google Drive has 'Anyone with the link' view access enabled.");
       }
     }
-
     // ==========================================
     // 6. CANVAS RENDERER + WATERMARK BURN
     // ==========================================
