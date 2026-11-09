@@ -124,6 +124,50 @@
       font-size: 14px;
       outline: none;
     }
+    .sidebar {
+      width: 340px;
+      border-radius: 0;
+      border-top: none;
+      border-bottom: none;
+      border-left: none;
+      display: flex;
+      flex-direction: column;
+      transition: width 0.25s ease, transform 0.25s ease, opacity 0.2s ease;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    /* COLLAPSED STATE ON DESKTOP */
+    .sidebar.collapsed {
+      width: 0 !important;
+      min-width: 0 !important;
+      border: none !important;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    /* MOBILE OVERLAY DRAWER */
+    @media (max-width: 768px) {
+      .sidebar {
+        position: absolute;
+        top: 60px;
+        left: 0;
+        bottom: 0;
+        width: 82% !important;
+        max-width: 320px;
+        z-index: 50;
+        background: rgba(11, 15, 25, 0.95);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        box-shadow: 10px 0 30px rgba(0, 0, 0, 0.7);
+        transform: translateX(0);
+      }
+      .sidebar.collapsed {
+        transform: translateX(-100%);
+        width: 82% !important;
+        opacity: 1;
+      }
+    }
     .glow-button {
       width: 100%;
       display: flex;
@@ -451,6 +495,13 @@
   <div id="portal-view" class="portal-wrapper" style="display: none;">
     <header class="top-nav glass-panel">
       <div class="nav-left">
+        <button id="btn-toggle-sidebar" class="icon-btn" title="Toggle Navigation Sidebar" style="margin-right: 12px;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+        </button>
         <div class="brand-badge">NDC</div>
         <div class="brand-title">
           <span>FACULTY_VAULT</span>
@@ -917,6 +968,30 @@
         wrapper.style.width = `${currentWidthPercent}%`;
       }
     }
+
+   // ==========================================
+    // SIDEBAR TOGGLE & AUTO-COLLAPSE ON MOBILE
+    // ==========================================
+    const sidebar = document.querySelector('.sidebar');
+    const toggleBtn = document.getElementById('btn-toggle-sidebar');
+
+    // Default collapse on small mobile devices so reader gets full width immediately
+    if (window.innerWidth <= 768) {
+      sidebar.classList.add('collapsed');
+    }
+
+    toggleBtn.addEventListener('click', () => {
+      sidebar.classList.toggle('collapsed');
+    });
+
+    // Auto-close sidebar on mobile once a note is selected
+    const originalLoadProtectedPDF = loadProtectedPDF;
+    loadProtectedPDF = function(driveId) {
+      originalLoadProtectedPDF(driveId);
+      if (window.innerWidth <= 768) {
+        sidebar.classList.add('collapsed');
+      }
+    };
 
     // Rotation buttons
     document.getElementById('btn-rotate').addEventListener('click', () => {
