@@ -584,7 +584,7 @@
             <button id="btn-fullscreen" class="hud-btn" title="Toggle Fullscreen Width">⛶</button>
             <button id="btn-reset-view" class="hud-btn" title="Reset Orientation & Size">↺</button>
           </div>
-        </div>>
+        </div>
 
         <div class="canvas-viewport" id="viewport">
           <div class="empty-state" id="empty-state">
@@ -843,6 +843,57 @@
         const isFolder = item.type === "folder";
         const isActiveFile = !isFolder && item.driveId === activeFileDriveId;
 
+        // Calculate metadata cleanly outside the template literal
+        const savedPage = !isFolder && currentRoll ? localStorage.getItem(`vault_last_page_${currentRoll}_${item.driveId}`) : null;
+        const metaText = isFolder 
+          ? `${item.contents ? item.contents.length : 0} items` 
+          : (savedPage ? `🔖 Resumes at pg ${savedPage} • ${item.details || ''}` : (item.details || 'PDF Notebook'));
+
+        itemEl.className = `dir-item ${isActiveFile ? 'active' : ''}`;
+const savedPage = !isFolder && currentRoll ? localStorage.getItem(`vault_last_page_${currentRoll}_${item.driveId}`) : null;
+        const metaText = isFolder 
+          ? `${item.contents ? item.contents.length : 0} items` 
+          : (savedPage ? `🔖 Resumes at pg ${savedPage} • ${item.details || ''}` : (item.details || 'PDF Notebook'));
+
+        itemEl.innerHTML = `
+          <span class="item-icon">${isFolder ? '📁' : '📄'}</span>
+          <div class="item-info">
+            <div class="item-title">${item.name}</div>
+            <div class="item-meta">${metaText}</div>
+          </div>
+          <span class="item-arrow">${isFolder ? '›' : ''}</span>
+        `;
+
+        itemEl.onclick = () => {
+          if (isFolder) {
+            currentNavPath.push(item.name);
+            renderCurrentDirectory();
+          } else {
+            activeFileDriveId = item.driveId;
+            document.querySelectorAll('.dir-item').forEach(el => el.classList.remove('active'));
+            itemEl.classList.add('active');
+            
+            document.getElementById('active-doc-title').innerText = item.name;
+            loadProtectedPDF(item.driveId);
+          }
+        };
+
+        container.appendChild(itemEl);
+      });
+    }
+        container.appendChild(backBtn);
+      }
+
+      if (!folder.contents || folder.contents.length === 0) {
+        container.innerHTML += `<div style="font-size: 12px; color: var(--text-muted); padding: 12px;">This directory is empty.</div>`;
+        return;
+      }
+
+      folder.contents.forEach(item => {
+        const itemEl = document.createElement('div');
+        const isFolder = item.type === "folder";
+        const isActiveFile = !isFolder && item.driveId === activeFileDriveId;
+
         itemEl.className = `dir-item ${isActiveFile ? 'active' : ''}`;
         itemEl.innerHTML = `
           <span class="item-icon">${isFolder ? '📁' : '📄'}</span>
@@ -1000,9 +1051,8 @@
         wrapper.style.width = `${currentWidthPercent}%`;
       }
     }
-// ==========================================
-    // PAGE BOOKMARK SAVE & JUMP
-    // ==========================================
+
+    // Page Bookmark Jump & Save
     function jumpAndSaveCurrentPage() {
       const pageInput = document.getElementById('page-jump-input');
       const pageNum = parseInt(pageInput.value, 10);
@@ -1019,7 +1069,7 @@
         frame.src = `https://drive.google.com/file/d/${activeFileDriveId}/preview#page=${pageNum}`;
       }
 
-      // Visual save feedback
+      // Visual feedback on pin icon
       const saveBtn = document.getElementById('btn-save-page');
       saveBtn.innerText = '✔';
       setTimeout(() => { saveBtn.innerText = '📌'; }, 1000);
@@ -1032,13 +1082,11 @@
         jumpAndSaveCurrentPage();
       }
     });
-   // ==========================================
-    // SIDEBAR TOGGLE & AUTO-COLLAPSE ON MOBILE
-    // ==========================================
+
+    // Sidebar Toggle & Mobile Auto-Collapse
     const sidebar = document.querySelector('.sidebar');
     const toggleBtn = document.getElementById('btn-toggle-sidebar');
 
-    // Default collapse on small mobile devices so reader gets full width immediately
     if (window.innerWidth <= 768) {
       sidebar.classList.add('collapsed');
     }
@@ -1056,13 +1104,13 @@
       }
     };
 
-    // Rotation buttons
+    // Rotation controls
     document.getElementById('btn-rotate').addEventListener('click', () => {
       currentRotation = (currentRotation + 90) % 360;
       updateRotationUI();
     });
 
-    // Width increment / decrement buttons
+    // Width controls
     document.getElementById('btn-width-up').addEventListener('click', () => {
       if (currentWidthPercent < 100) {
         currentWidthPercent = Math.min(100, currentWidthPercent + 10);
@@ -1077,51 +1125,20 @@
       }
     });
 
-    // Toggle full width (100% vs comfortable 75%)
+    // Toggle wide view
     document.getElementById('btn-fullscreen').addEventListener('click', () => {
       currentWidthPercent = currentWidthPercent === 100 ? 75 : 100;
       updateWidthUI();
     });
 
-    // Reset View
+    // Reset Orientation & Width
     document.getElementById('btn-reset-view').addEventListener('click', () => {
       currentRotation = 0;
       currentWidthPercent = 100;
       updateRotationUI();
       updateWidthUI();
     });
-    // ==========================================
-    // LOCAL STORAGE BOOKMARKING LOGIC
-    // ==========================================
-    function jumpAndSaveCurrentPage() {
-      const pageInput = document.getElementById('page-jump-input');
-      const pageNum = parseInt(pageInput.value, 10);
 
-      if (!activeFileDriveId || isNaN(pageNum) || pageNum < 1) return;
-
-      // Persist in browser memory
-      localStorage.setItem(getStorageKey(activeFileDriveId), pageNum);
-
-      // Force iframe navigation to new page position
-      const frame = document.getElementById('pdf-frame');
-      if (frame) {
-        frame.src = `https://drive.google.com/file/d/${activeFileDriveId}/preview#page=${pageNum}`;
-      }
-
-      // Visual feedback on pin icon
-      const saveBtn = document.getElementById('btn-save-page');
-      saveBtn.innerText = '✔';
-      setTimeout(() => { saveBtn.innerText = '📌'; }, 1200);
-    }
-
-    document.getElementById('btn-save-page').addEventListener('click', jumpAndSaveCurrentPage);
-
-    // Pressing 'Enter' inside the page input jumps directly
-    document.getElementById('page-jump-input').addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') {
-        jumpAndSaveCurrentPage();
-      }
-    });
     // Anti-save / anti-inspect
     document.addEventListener('contextmenu', e => e.preventDefault());
     document.addEventListener('keydown', e => {
